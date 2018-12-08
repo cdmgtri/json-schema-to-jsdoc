@@ -162,7 +162,7 @@ function processEnumSchema(componentSchema, name) {
   jsdoc += ` * @typedef {${enums}} ${name}\n`;
   if (description) {
     jsdoc += ` *\n`;
-    jsdoc += ` * ${description} */\n\n`;
+    jsdoc += ` * ${description}\n`;
   }
   jsdoc += ` */\n\n`;
 
