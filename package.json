@@ -1,10 +1,14 @@
 {
   "name": "json-schema-to-jsdoc",
   "version": "1.0.0",
-  "description": "JSON Schema to JSDoc generator",
+  "description": "Generate a JSDoc file from a JSON schema to enable code hinting.",
   "main": "index.js",
+  "bin": {
+    "jsonschema-jsdoc": "bin/jsonschema-jsdoc"
+  },
   "scripts": {
     "test": "jest",
+    "test:cli": "node bin/jsonschema-jsdoc test/sample.schema.json test/output/sample.cli.js",
     "test:debug": "cross-env DEBUG=jsdoc jest"
   },
   "keywords": [
@@ -17,9 +21,11 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "chalk": "^2.4.1",
     "debug": "^4.1.0",
     "fs-extra": "^7.0.1",
-    "json-schema-ref-parser": "^6.0.2"
+    "json-schema-ref-parser": "^6.0.2",
+    "minimist": "^1.2.0"
   },
   "devDependencies": {
     "coveralls": "^3.0.2",

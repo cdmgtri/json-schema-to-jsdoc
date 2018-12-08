@@ -2,12 +2,12 @@
 const fs = require("fs-extra");
 const RefParser = require("json-schema-ref-parser");
 
-const JSDoc = require("../index");
+const JSONSchemaToJSDoc = require("../index");
 
 let jsdocText = "";
 
 beforeAll( async () => {
-  await JSDoc.generateFile("test/sample.schema.json", "test/output/sample.js");
+  await JSONSchemaToJSDoc.generateFile("test/sample.schema.json", "test/output/sample.js");
   jsdocText = fs.readFileSync("test/output/sample.js", {encoding: "utf8"});
 });
 
