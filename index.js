@@ -1,85 +1,225 @@
-const fs = require('fs');
-const json = require('json-pointer');
 
-module.exports = generate;
+const fs = require('fs-extra');
+const debug = require("debug")("jsdoc");
+const RefParser = require("json-schema-ref-parser");
 
-function generate(schema, options = {}) {
-  let jsdoc = '';
+class JSDoc {
 
-  if (!schema || Object.keys(schema).length === 0) {
+  /**
+   * Generates JSDoc typedefs for all properties in the given JSON schema.
+   * Writes the JSDoc file to the given jsdocPath.
+   *
+   * @static
+   * @param {string} schemaPath
+   * @param {string} jsdocPath
+   * @returns {void}
+   */
+  static async generateFile(schemaPath, jsdocPath) {
+
+    let jsonSchema = fs.readJSONSync(schemaPath);
+    jsonSchema = await RefParser.dereference(jsonSchema);
+
+    /** @type {string[]} */
+    let exportObjects = [];
+
+    let jsdoc = "";
+
+    for (let propertyKey in jsonSchema.properties) {
+
+      let property = jsonSchema.properties[propertyKey];
+
+      debug(propertyKey);
+
+      if (propertyKey === "$schema") {
+        continue;
+      }
+
+      let elementName = propertyKey;
+      let typeName = propertyKey + "Type";
+
+      // Get the JSDoc representation of the schema definition
+      jsdoc += JSDoc.generateComponent(property, {name: typeName});
+
+      // Create an element with the new JSDoc type
+      jsdoc += `/** @type {${typeName}} */ \n`;
+      jsdoc += `let ${elementName} = {}; \n\n`;
+
+      exportObjects.push(elementName);
+    }
+
+    jsdoc += `module.exports = { ${exportObjects.join(", ")} }\n`;
+
+    fs.outputFileSync(jsdocPath, jsdoc);
+    debug("\n%s\n", jsdoc);
+  }
+
+  /**
+   * Generate a JSDoc typedef for the given JSON schema property (dereferenced).
+   *
+   * @static
+   * @param {Object} componentSchema
+   * @param {Object} [options]
+   * @param {string} [options.name] - The name of the typedef
+   * @returns
+   */
+  static generateComponent(componentSchema, options = {}) {
+
+    if (!componentSchema || Object.keys(componentSchema).length === 0) {
+      // Handle invalid input
+      return "";
+    }
+    else if (componentSchema.enum) {
+      // Handle a simple enumeration type
+      let enums = generateEnums(componentSchema.enum);
+      return `/** @typedef {${enums}} ${options.name} - ${componentSchema.description} */`;
+    }
+
+    let jsdoc = `\n`;
+
+    jsdoc += `/**\n`;
+    jsdoc += getTypedefHeader(componentSchema, options.name);
+    jsdoc += processProperties(componentSchema, options);
+    jsdoc += ' */\n\n';
+
     return jsdoc;
   }
-
-  jsdoc += '/**\n';
-  jsdoc += writeDescription(schema);
-
-  if (!json.has(schema, '/properties')){
-   return jsdoc;
-  }
-
-  jsdoc += processProperties(schema, false, options);
-
-  jsdoc += '  */\n';
-
-  return jsdoc;
 }
 
-function processProperties(schema, nested, options = {}) {
-  const props = json.get(schema, '/properties');
-  const required = json.has(schema, '/required') ? json.get(schema, '/required') : [];
+
+/**
+ * Returns JSDoc lines for the properties of a component schema.
+ * Handles sub-properties.
+ *
+ * @param {Object} componentSchema
+ * @param {Object} [options={}]
+ * @returns
+ */
+function processProperties(componentSchema, options = {}) {
 
   let text = '';
-  for (let property in props) {
-    if (Array.isArray(options.ignore) && options.ignore.includes(property)) {
+
+  // Deep copy properties
+  const properties = JSON.parse( JSON.stringify(componentSchema.properties) );
+  const required = componentSchema.required || [];
+
+  for (let currentPropertyKey in properties) {
+
+    debug("--" + currentPropertyKey);
+
+    let currentProperty = properties[currentPropertyKey];
+
+    if (Array.isArray(options.ignore) && options.ignore.includes(currentProperty)) {
       continue;
-    } else {
-      let prefix = nested ? '.' : '';
+    }
 
-      if (props[property].type === 'object' && props[property].properties) {
-        text += writeParam('object', prefix + property, props[property].description, true);
-        text += processProperties(props[property], true);
-      } else {
-        let optional = !required.includes(property);
-        let type = getType(props[property]) || upperFirst(property);
-        text += writeParam(type, prefix + property, props[property].description, optional);
+    let newSubs = {};
+    if (currentProperty.properties) {
+      for (let subPropertyKey in currentProperty.properties) {
+        debug("----" + subPropertyKey);
+        let subProperty = currentProperty.properties[subPropertyKey];
+        newSubs[currentPropertyKey + "." + subPropertyKey] = subProperty
       }
-    } 
-  }
-  return text;
-}
+      currentProperty.properties = newSubs;
+    }
 
-function writeDescription(schema, suffix = 'object') {
-  let text = schema.description || `Represents a ${schema.id} ${suffix}`;
-  text += `\n  * @name ${upperFirst(schema.id)}`;
-  return `  * ${text}\n  *\n`;
-}
+    if (currentProperty.type === 'object' && currentProperty.properties) {
+      text += writeParam('object', currentPropertyKey, currentProperty.description, true);
+      text += processProperties(currentProperty, true);
+    }
+    else {
+      let optional = !required.includes(currentPropertyKey);
+      let type = getType(currentProperty) || upperFirst(currentPropertyKey);
 
-function writeParam(type = '', field, description = '', optional) {
-  const fieldTemplate = optional ? `[${field}]` : field;
-  return `  * @property {${type}} ${fieldTemplate} - ${description} \n`;
-}
-
-function getType(schema) {
-  if (schema.$ref) {
-    const ref = json.get(root, schema.$ref.substr(1));
-    return getType(ref);
-  }
-
-  if (schema.enum) {
-    return 'enum';
-  } 
-
-  if (Array.isArray(schema.type)) {
-    if (schema.type.includes('null')) {
-      return `?${schema.type[0]}`;
-    } else {
-      return schema.type.join('|');
+      let description = currentProperty.description;
+      if (!description && currentProperty.example) {
+        description = "Example: " + currentProperty.example;
+      }
+      text += writeParam(type, currentPropertyKey, description, optional);
     }
   }
 
-  return schema.type;
+  return text;
+}
+
+/**
+ * Returns the header lines for the JSDoc, creating a named typedef.
+ * Adds the description field if available.
+ *
+ * @param {Object} componentSchema
+ * @param {string} componentName
+ * @returns
+ */
+function getTypedefHeader(componentSchema, componentName) {
+
+  let text = "";
+  text += ` * @typedef {Object} ${componentName}\n`;
+  text += ` *\n`;
+
+  if (componentSchema.description) {
+    text += ` * ${componentSchema.description}\n`;
+    text += ` *\n`;
+  }
+
+  return text;
+}
+
+/**
+ * Returns the JSDoc line for a parameter.
+ *
+ * @param {string} [type='']
+ * @param {string} field
+ * @param {string} [description='']
+ * @param {boolean} optional
+ * @returns {string}
+ */
+function writeParam(type = '', field, description = '', optional) {
+  const fieldTemplate = optional ? `[${field}]` : field;
+  return ` * @property {${type}} ${fieldTemplate} - ${description} \n`;
+}
+
+/**
+ * Returns the corresponding JSDoc type string for the given schema type.
+ *
+ * @param {Object} componentSchema
+ * @returns {string}
+ */
+function getType(componentSchema) {
+
+  if (componentSchema.enum) {
+    return generateEnums(componentSchema.enum);
+  }
+
+  if (Array.isArray(componentSchema.type)) {
+    if (componentSchema.type.includes('null')) {
+      return `?${componentSchema.type[0]}`;
+    } else {
+      return componentSchema.type.join('|');
+    }
+  }
+
+  return componentSchema.type;
 }
 
 function upperFirst(str = '') {
   return str.substr(0,1).toUpperCase() + str.substr(1);
 }
+
+/**
+ * Returns a JSDoc enumeration string, e.g., `"Enum1"|"Enum2"|"Enum3"`
+ * from a string array if there are less than 30 enums.
+ * Returns "string" otherwise.
+ *
+ * @param {string[]} enums
+ * @returns {string}
+ */
+function generateEnums(enums) {
+  if (enums.length > 30) {
+    return "string";
+  }
+
+  /** @type {string[]} */
+  let quotedEnums = enums.map( enumeration => "\"" + enumeration + "\"");
+  return quotedEnums.join("|");
+}
+
+module.exports = JSDoc;

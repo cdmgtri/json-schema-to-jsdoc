@@ -1,0 +1,57 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema",
+  "properties": {
+    "Person": {
+      "type": "object",
+      "description": "Information about a person",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "A person's name"
+        },
+        "age": {
+          "type": "integer",
+          "description": "A person's age"
+        },
+        "location": {
+          "$ref": "#/definitions/LocationType"
+        },
+        "contactCodes": {
+          "$ref": "#/properties/ContactCodes"
+        }
+      },
+      "required": ["name"]
+    },
+    "Location": {
+      "$ref": "#/definitions/LocationType"
+    },
+    "ContactCodes": {
+      "type": "string",
+      "enum": ["home", "work", "cell", "other"]
+    }
+  },
+  "definitions": {
+    "LocationType": {
+      "type": "object",
+      "properties": {
+        "street": {
+          "type": "string",
+          "description": "A street address"
+        },
+        "city": {
+          "type": "string",
+          "description": "A city name"
+        },
+        "state": {
+          "type": "string",
+          "enum": ["CA", "NY", "TX", "FL"],
+          "description": "A state code"
+        },
+        "zip": {
+          "type": "string",
+          "description": "A zip code"
+        }
+      }
+    }
+  }
+}

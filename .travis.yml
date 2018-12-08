@@ -1,0 +1,12 @@
+
+language: node_js
+node_js:
+  - node
+
+script: npm run test
+
+jobs:
+  include:
+    - stage: Coverage
+      node_js: node
+      script: jest --coverage --coverageReporters=text-lcov | coveralls
