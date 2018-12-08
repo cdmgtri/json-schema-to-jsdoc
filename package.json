@@ -9,6 +9,9 @@
   "scripts": {
     "test": "jest",
     "test:cli": "node bin/jsonschema-jsdoc test/sample.schema.json test/output/sample.cli.js",
+    "test:cli-fail1": "node bin/jsonschema-jsdoc test/sample.schema.json",
+    "test:cli-fail2": "node bin/jsonschema-jsdoc",
+    "test:cli-fail3": "node bin/jsonschema-jsdoc test/nosample.schema.json test/output/sample.cli.js",
     "test:debug": "cross-env DEBUG=jsdoc jest"
   },
   "keywords": [

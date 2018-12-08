@@ -17,6 +17,11 @@ class JSONSchemaToJSDoc {
   static async generateFile(schemaPath, jsdocPath) {
 
     let jsonSchema = fs.readJSONSync(schemaPath);
+
+    if (!jsonSchema) {
+      process.exit(1);
+    }
+
     jsonSchema = await RefParser.dereference(jsonSchema);
 
     /** @type {string[]} */
