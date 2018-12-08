@@ -3,7 +3,7 @@ const fs = require('fs-extra');
 const debug = require("debug")("jsdoc");
 const RefParser = require("json-schema-ref-parser");
 
-class JSDoc {
+class JSONSchemaToJSDoc {
 
   /**
    * Generates JSDoc typedefs for all properties in the given JSON schema.
@@ -38,7 +38,7 @@ class JSDoc {
       let typeName = propertyKey + "Type";
 
       // Get the JSDoc representation of the schema definition
-      jsdoc += JSDoc.generateComponent(property, {name: typeName});
+      jsdoc += JSONSchemaToJSDoc.generateComponent(property, {name: typeName});
 
       // Create an element with the new JSDoc type
       jsdoc += `/** @type {${typeName}} */ \n`;
@@ -70,8 +70,7 @@ class JSDoc {
     }
     else if (componentSchema.enum) {
       // Handle a simple enumeration type
-      let enums = generateEnums(componentSchema.enum);
-      return `/** @typedef {${enums}} ${options.name} - ${componentSchema.description} */`;
+      return processEnumSchema(componentSchema, options.name);
     }
 
     let jsdoc = `\n`;
@@ -139,6 +138,30 @@ function processProperties(componentSchema, options = {}) {
   }
 
   return text;
+}
+
+/**
+ * Generates a typedef for a simple component with a set of enums.
+ *
+ * @param {Object} componentSchema
+ * @param {string} componentName
+ * @returns
+ */
+function processEnumSchema(componentSchema, name) {
+
+  let enums = generateEnums(componentSchema.enum);
+  let description = componentSchema.description || "";
+
+  let jsdoc = "";
+  jsdoc += `/**\n`;
+  jsdoc += ` * @typedef {${enums}} ${name}\n`;
+  if (description) {
+    jsdoc += ` *\n`;
+    jsdoc += ` * ${description} */\n\n`;
+  }
+  jsdoc += ` */\n\n`;
+
+  return jsdoc;
 }
 
 /**
@@ -222,4 +245,4 @@ function generateEnums(enums) {
   return quotedEnums.join("|");
 }
 
-module.exports = JSDoc;
+module.exports = JSONSchemaToJSDoc;
